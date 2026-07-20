@@ -5,8 +5,9 @@ import { type FormEvent, useMemo, useState } from "react";
 type Answer = { text: string; points: number };
 type Round = { question: string; answers: Answer[] };
 type Team = { name: string; players: string[]; score: number };
-type GamePhase = "faceoff" | "play" | "complete";
+type GamePhase = "faceoff" | "play" | "steal" | "complete";
 type FeedbackTone = "neutral" | "correct" | "strike";
+type IncorrectAnswer = { text: string; teamIndex: number; note: string };
 
 const ROUNDS: Round[] = [
   {
@@ -59,7 +60,74 @@ const ROUNDS: Round[] = [
       { text: "No alarm tomorrow", points: 8 },
     ],
   },
+  {
+    question: "Name something you might find on an office desk.",
+    answers: [
+      { text: "Computer", points: 35 },
+      { text: "Pen", points: 28 },
+      { text: "Papers", points: 18 },
+      { text: "Coffee mug", points: 12 },
+      { text: "Phone", points: 5 },
+      { text: "Stapler", points: 2 },
+    ],
+  },
+  {
+    question: "Name a reason people are late to work.",
+    answers: [
+      { text: "Traffic", points: 42 },
+      { text: "Overslept", points: 25 },
+      { text: "Car problems", points: 15 },
+      { text: "Public transit delay", points: 8 },
+      { text: "Bad weather", points: 6 },
+      { text: "Forgot something", points: 4 },
+    ],
+  },
+  {
+    question: "Name something people complain about at work.",
+    answers: [
+      { text: "Boss", points: 38 },
+      { text: "Salary", points: 22 },
+      { text: "Long hours", points: 18 },
+      { text: "Coworkers", points: 12 },
+      { text: "Meetings", points: 6 },
+      { text: "Workload", points: 4 },
+    ],
+  },
+  {
+    question: "Name something people do during lunch break.",
+    answers: [
+      { text: "Eat", points: 45 },
+      { text: "Check phone", points: 20 },
+      { text: "Go for a walk", points: 15 },
+      { text: "Run errands", points: 10 },
+      { text: "Take a nap", points: 6 },
+      { text: "Exercise", points: 4 },
+    ],
+  },
+  {
+    question: "Name something people wear to look professional.",
+    answers: [
+      { text: "Suit", points: 32 },
+      { text: "Dress shirt", points: 28 },
+      { text: "Tie", points: 20 },
+      { text: "Dress shoes", points: 12 },
+      { text: "Blazer", points: 5 },
+      { text: "Watch", points: 3 },
+    ],
+  },
 ];
+
+function shuffleRounds(rounds: Round[]) {
+  const shuffled = [...rounds];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [
+      shuffled[randomIndex],
+      shuffled[index],
+    ];
+  }
+  return shuffled;
+}
 
 const STARTING_TEAMS: Team[] = [
   {
@@ -282,13 +350,18 @@ export default function Home() {
   const [roster, setRoster] = useState<string[]>([]);
   const [playerDraft, setPlayerDraft] = useState("");
   const [teamsDrawn, setTeamsDrawn] = useState(false);
+  const [gameRounds, setGameRounds] = useState<Round[]>(ROUNDS);
   const [roundIndex, setRoundIndex] = useState(0);
   const [revealed, setRevealed] = useState<number[]>([]);
+  const [bankedAnswers, setBankedAnswers] = useState<number[]>([]);
+  const [incorrectAnswers, setIncorrectAnswers] = useState<IncorrectAnswer[]>([]);
   const [strikes, setStrikes] = useState(0);
   const [activeTeam, setActiveTeam] = useState(0);
   const [phase, setPhase] = useState<GamePhase>("faceoff");
   const [roundAwarded, setRoundAwarded] = useState(false);
   const [faceOffTeam, setFaceOffTeam] = useState(0);
+  const [faceOffStartingTeam, setFaceOffStartingTeam] = useState(0);
+  const [faceOffSkippedTeam, setFaceOffSkippedTeam] = useState<number | null>(null);
   const [faceOffPoints, setFaceOffPoints] = useState<[number | null, number | null]>([
     null,
     null,
@@ -300,13 +373,17 @@ export default function Home() {
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
   const [controlsOpen, setControlsOpen] = useState(true);
 
-  const round = ROUNDS[roundIndex];
+  const round = gameRounds[roundIndex];
   const boardPoints = useMemo(
-    () => revealed.reduce((sum, index) => sum + round.answers[index].points, 0),
-    [revealed, round],
+    () =>
+      bankedAnswers.reduce(
+        (sum, index) => sum + round.answers[index].points,
+        0,
+      ),
+    [bankedAnswers, round],
   );
   const gameFinished =
-    roundIndex === ROUNDS.length - 1 && phase === "complete" && roundAwarded;
+    roundIndex === gameRounds.length - 1 && phase === "complete" && roundAwarded;
 
   const updateTeamName = (index: number, name: string) => {
     setTeams((current) =>
@@ -383,14 +460,58 @@ export default function Home() {
     setFeedbackTone("correct");
   };
 
-  const addStrike = () => {
+  const startSteal = (reason: string) => {
+    const stealingTeam = activeTeam === 0 ? 1 : 0;
+    setActiveTeam(stealingTeam);
+    setPhase("steal");
+    setRoundAwarded(false);
+    setFeedback(
+      `${reason} ${teams[stealingTeam].name} gets one answer to steal the entire board total.`,
+    );
+    setFeedbackTone("strike");
+  };
+
+  const recordIncorrectAnswer = (
+    text: string,
+    teamIndex: number,
+    note: string,
+  ) => {
+    setIncorrectAnswers((current) => [...current, { text, teamIndex, note }]);
+  };
+
+  const chooseFaceOffStarter = (teamIndex: number) => {
+    if (
+      phase !== "faceoff" ||
+      faceOffPoints[0] !== null ||
+      faceOffPoints[1] !== null
+    ) {
+      return;
+    }
+    setFaceOffStartingTeam(teamIndex);
+    setFaceOffSkippedTeam(null);
+    setFaceOffTeam(teamIndex);
+    setActiveTeam(teamIndex);
+    setFeedback(
+      `${teams[teamIndex].name} gives the first face-off answer. No strike can be given.`,
+    );
+    setFeedbackTone("neutral");
+  };
+
+  const addStrike = (incorrectAnswer?: string) => {
     if (phase !== "play") return;
     playWrongAnswerBuzzer();
     const nextStrikes = Math.min(3, strikes + 1);
+    if (incorrectAnswer) {
+      recordIncorrectAnswer(
+        incorrectAnswer,
+        activeTeam,
+        `STRIKE ${nextStrikes}`,
+      );
+    }
     setStrikes(nextStrikes);
     setFeedbackTone("strike");
     if (nextStrikes === 3) {
-      completeRound(`Three strikes. The round is over for ${teams[activeTeam].name}.`);
+      startSteal(`Three strikes for ${teams[activeTeam].name}.`);
     } else {
       setFeedback(`No match. Strike ${nextStrikes} for ${teams[activeTeam].name}.`);
     }
@@ -416,33 +537,65 @@ export default function Home() {
       if (matchedAnswer) {
         playCorrectAnswerBells();
         setRevealed((current) => [...current, matchedIndex]);
+        setBankedAnswers((current) => [...current, matchedIndex]);
         setFeedbackTone("correct");
       } else {
         playWrongAnswerBuzzer();
+        recordIncorrectAnswer(
+          submittedGuess,
+          answeringTeam,
+          "FACE-OFF / NO STRIKE",
+        );
         setFeedbackTone("neutral");
       }
 
-      if (answeringTeam === 0) {
-        setFaceOffPoints([earnedPoints, null]);
-        setFaceOffTeam(1);
-        setActiveTeam(1);
+      const otherTeam = answeringTeam === 0 ? 1 : 0;
+      const updatedFaceOffPoints: [number | null, number | null] = [
+        faceOffPoints[0],
+        faceOffPoints[1],
+      ];
+      updatedFaceOffPoints[answeringTeam] = earnedPoints;
+      setFaceOffPoints(updatedFaceOffPoints);
+
+      const isOpeningAnswer = faceOffPoints[otherTeam] === null;
+
+      if (isOpeningAnswer && matchedAnswer && matchedIndex === 0) {
+        setFaceOffSkippedTeam(otherTeam);
+        setActiveTeam(answeringTeam);
+        setPhase("play");
+        setStrikes(0);
         setFeedback(
-          `${matchedAnswer ? `${matchedAnswer.text} is worth ${earnedPoints}. ` : isAlreadyRevealed ? "That answer is already showing. " : "No match. "}${teams[1].name} now gives its strike-free face-off answer.`,
+          `${teams[answeringTeam].name} found the #1 answer and takes control automatically. ${teams[otherTeam].name}'s face-off answer is skipped.`,
         );
         return;
       }
 
-      const firstTeamPoints = faceOffPoints[0] ?? 0;
-      const scores: [number, number] = [firstTeamPoints, earnedPoints];
-      setFaceOffPoints(scores);
-      const controllingTeam = scores[1] > scores[0] ? 1 : 0;
+      if (isOpeningAnswer) {
+        setFaceOffTeam(otherTeam);
+        setActiveTeam(otherTeam);
+        setFeedback(
+          `${matchedAnswer ? `${matchedAnswer.text} is worth ${earnedPoints}. ` : isAlreadyRevealed ? "That answer is already showing. " : "No match. "}${teams[otherTeam].name} now gives its strike-free face-off answer.`,
+        );
+        return;
+      }
+
+      const scores: [number, number] = [
+        updatedFaceOffPoints[0] ?? 0,
+        updatedFaceOffPoints[1] ?? 0,
+      ];
+      const controllingTeam =
+        scores[0] === scores[1]
+          ? faceOffStartingTeam
+          : scores[1] > scores[0]
+            ? 1
+            : 0;
       setActiveTeam(controllingTeam);
       setPhase("play");
       setStrikes(0);
 
       if (scores[0] === scores[1]) {
         setFeedback(
-          `The face-off is tied at ${scores[0]}. ${teams[0].name} takes control and answers until three strikes.`,
+          `The face-off is tied at ${scores[0]}. ${teams[faceOffStartingTeam].name}, the opening team, takes control until three strikes.`,
         );
       } else {
         setFeedback(
@@ -452,10 +605,39 @@ export default function Home() {
       return;
     }
 
+    if (phase === "steal") {
+      if (matchedAnswer) {
+        playCorrectAnswerBells();
+        const nextRevealed = [...revealed, matchedIndex];
+        const nextBankedAnswers = [...bankedAnswers, matchedIndex];
+        const stolenBoardTotal = nextBankedAnswers.reduce(
+          (sum, answerIndex) => sum + round.answers[answerIndex].points,
+          0,
+        );
+        setRevealed(nextRevealed);
+        setBankedAnswers(nextBankedAnswers);
+        awardPoints(activeTeam, stolenBoardTotal);
+        setRoundAwarded(true);
+        setPhase("complete");
+        setFeedbackTone("correct");
+        setFeedback(
+          `${matchedAnswer.text} is on the board! ${teams[activeTeam].name} steals all ${stolenBoardTotal} points.`,
+        );
+      } else {
+        playWrongAnswerBuzzer();
+        recordIncorrectAnswer(submittedGuess, activeTeam, "STEAL ATTEMPT");
+        completeRound(
+          `${teams[activeTeam].name} missed their one steal answer.`,
+        );
+      }
+      return;
+    }
+
     if (matchedAnswer) {
       playCorrectAnswerBells();
       const nextRevealed = [...revealed, matchedIndex];
       setRevealed(nextRevealed);
+      setBankedAnswers((current) => [...current, matchedIndex]);
       setFeedbackTone("correct");
       if (nextRevealed.length === round.answers.length) {
         completeRound(
@@ -472,29 +654,38 @@ export default function Home() {
     if (isAlreadyRevealed) {
       playWrongAnswerBuzzer();
       const nextStrikes = Math.min(3, strikes + 1);
+      recordIncorrectAnswer(
+        submittedGuess,
+        activeTeam,
+        `STRIKE ${nextStrikes}`,
+      );
       setStrikes(nextStrikes);
       setFeedbackTone("strike");
       if (nextStrikes === 3) {
-        completeRound(`That answer was already on the board. Three strikes ends the round.`);
+        startSteal(`That answer was already on the board. Three strikes.`);
       } else {
         setFeedback(`That answer is already on the board. Strike ${nextStrikes}.`);
       }
       return;
     }
 
-    addStrike();
+    addStrike(submittedGuess);
   };
 
   const nextRound = () => {
-    if (roundIndex >= ROUNDS.length - 1) return;
+    if (roundIndex >= gameRounds.length - 1) return;
     const nextIndex = roundIndex + 1;
-    const startingTeam = 0;
+    const startingTeam = nextIndex % 2;
     setRoundIndex(nextIndex);
     setRevealed([]);
+    setBankedAnswers([]);
+    setIncorrectAnswers([]);
     setStrikes(0);
     setPhase("faceoff");
     setRoundAwarded(false);
     setFaceOffTeam(startingTeam);
+    setFaceOffStartingTeam(startingTeam);
+    setFaceOffSkippedTeam(null);
     setFaceOffPoints([null, null]);
     setActiveTeam(startingTeam);
     setGuess("");
@@ -508,10 +699,14 @@ export default function Home() {
     setTeams((current) => current.map((team) => ({ ...team, score: 0 })));
     setRoundIndex(0);
     setRevealed([]);
+    setBankedAnswers([]);
+    setIncorrectAnswers([]);
     setStrikes(0);
     setPhase("faceoff");
     setRoundAwarded(false);
     setFaceOffTeam(0);
+    setFaceOffStartingTeam(0);
+    setFaceOffSkippedTeam(null);
     setFaceOffPoints([null, null]);
     setActiveTeam(0);
     setGuess("");
@@ -590,6 +785,7 @@ export default function Home() {
           <button
             className="primary-button"
             onClick={() => {
+              setGameRounds(shuffleRounds(ROUNDS));
               setStarted(true);
               setFeedback(
                 `${teams[0].name} gives the first face-off answer. No strike can be given.`,
@@ -605,7 +801,7 @@ export default function Home() {
           <p>
             {!teamsDrawn
               ? "Add players and draw teams to unlock the game"
-              : `${roster.length} players / ${teams[0].players.length} vs ${teams[1].players.length} / 5 rounds`}
+              : `${roster.length} players / ${teams[0].players.length} vs ${teams[1].players.length} / ${ROUNDS.length} rounds`}
           </p>
         </div>
       </main>
@@ -613,13 +809,19 @@ export default function Home() {
   }
 
   const activeKicker =
-    phase === "faceoff" ? "FACE-OFF ANSWER" : phase === "play" ? "IN CONTROL" : "ROUND COMPLETE";
+    phase === "faceoff"
+      ? "FACE-OFF ANSWER"
+      : phase === "play"
+        ? "IN CONTROL"
+        : phase === "steal"
+          ? "STEAL CHANCE"
+          : "ROUND COMPLETE";
 
   return (
     <main className="game-shell">
       <header className="game-header">
         <Logo />
-        <div className="round-label">ROUND {roundIndex + 1} <span>OF {ROUNDS.length}</span></div>
+        <div className="round-label">ROUND {roundIndex + 1} <span>OF {gameRounds.length}</span></div>
         <button className="reset-button" onClick={resetGame}>NEW GAME</button>
       </header>
 
@@ -642,9 +844,9 @@ export default function Home() {
 
       <div className="faceoff-score" aria-label="Face-off scores">
         <span>FIRST ANSWERS - NO STRIKES</span>
-        <b>{teams[0].name}: {faceOffPoints[0] ?? "--"}</b>
+        <b>{teams[0].name}: {faceOffPoints[0] ?? (faceOffSkippedTeam === 0 ? "SKIPPED" : "--")}</b>
         <i />
-        <b>{teams[1].name}: {faceOffPoints[1] ?? "--"}</b>
+        <b>{teams[1].name}: {faceOffPoints[1] ?? (faceOffSkippedTeam === 1 ? "SKIPPED" : "--")}</b>
       </div>
 
       <section className="game-stage">
@@ -675,9 +877,36 @@ export default function Home() {
 
           <form className={`answer-entry ${feedbackTone}`} onSubmit={submitAnswer}>
             <div className="answer-entry-heading">
-              <span>{phase === "faceoff" ? "FACE-OFF" : phase === "play" ? "TEAM ANSWER" : "ROUND OVER"}</span>
-              <strong>{phase === "complete" ? "Ready for the next round" : `${teams[activeTeam].name} is answering`}</strong>
+              <span>{phase === "faceoff" ? "FACE-OFF" : phase === "play" ? "TEAM ANSWER" : phase === "steal" ? "ONE-ANSWER STEAL" : "ROUND OVER"}</span>
+              <strong>
+                {phase === "complete"
+                  ? roundAwarded
+                    ? "Ready for the next round"
+                    : "Host must award the round bank"
+                  : `${teams[activeTeam].name} is answering`}
+              </strong>
             </div>
+            {phase === "faceoff" &&
+              faceOffPoints[0] === null &&
+              faceOffPoints[1] === null && (
+                <div className="faceoff-starter-picker">
+                  <div>
+                    <span>FIRST FACE-OFF ANSWER</span>
+                    <small>Alternates each round. The host may override it now.</small>
+                  </div>
+                  {teams.map((team, index) => (
+                    <button
+                      type="button"
+                      key={team.name}
+                      className={faceOffStartingTeam === index ? "selected" : ""}
+                      onClick={() => chooseFaceOffStarter(index)}
+                      aria-pressed={faceOffStartingTeam === index}
+                    >
+                      {team.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             <div className="answer-input-row">
               <label htmlFor="team-answer">Enter the team&apos;s answer</label>
               <input
@@ -687,12 +916,33 @@ export default function Home() {
                 placeholder="Type an answer..."
                 autoComplete="off"
                 autoFocus
+                maxLength={80}
                 disabled={phase === "complete"}
               />
               <button type="submit" disabled={!guess.trim() || phase === "complete"}>CHECK ANSWER</button>
             </div>
             <p role="status" aria-live="polite">{feedback}</p>
           </form>
+
+          {incorrectAnswers.length > 0 && (
+            <aside className="incorrect-box" aria-label="Incorrect answers this round">
+              <div className="incorrect-box-heading">
+                <span>INCORRECT ANSWERS</span>
+                <b>{incorrectAnswers.length}</b>
+              </div>
+              <ul>
+                {incorrectAnswers.map((answer, index) => (
+                  <li className={`team-${answer.teamIndex + 1}`} key={`${answer.text}-${index}`}>
+                    <div>
+                      <span>{teams[answer.teamIndex].name}</span>
+                      <small>{answer.note}</small>
+                    </div>
+                    <strong>{answer.text}</strong>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          )}
 
           <div className="round-status">
             <div className="strikes" aria-label={`${strikes} strikes`}>
@@ -724,7 +974,7 @@ export default function Home() {
             </div>
             <div className="control-group">
               <span>MANUAL CALL</span>
-              <button className="strike-button" onClick={addStrike} disabled={phase !== "play"}>+ STRIKE</button>
+              <button className="strike-button" onClick={() => addStrike()} disabled={phase !== "play"}>+ STRIKE</button>
               <button onClick={() => completeRound("The host ended this round.")} disabled={phase === "complete"}>END ROUND</button>
             </div>
             <div className="control-group award-group">
@@ -741,7 +991,7 @@ export default function Home() {
             </div>
             <div className="rules-note">
               <b>HOW CONTROL WORKS</b>
-              <span>Answers build the bank. After the round, the host awards that full total to one team.</span>
+              <span>After three strikes, the other team gets one answer. A match steals the full board automatically.</span>
             </div>
             <button
               className="next-button"

@@ -130,6 +130,12 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
 .answer-entry-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 15px; margin-bottom: 11px; }
 .answer-entry-heading span { color: var(--yellow); font-size: 9px; font-weight: 950; letter-spacing: .2em; }
 .answer-entry-heading strong { color: #d8ddf9; font-size: 12px; text-align: right; }
+.faceoff-starter-picker { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 7px; align-items: stretch; margin-bottom: 12px; padding: 10px; background: rgba(40,55,130,.45); border: 1px solid rgba(121,143,225,.35); }
+.faceoff-starter-picker > div { display: flex; flex-direction: column; justify-content: center; }
+.faceoff-starter-picker span { color: var(--yellow); font-size: 8px; font-weight: 950; letter-spacing: .16em; }
+.faceoff-starter-picker small { margin-top: 4px; color: #9ea8d5; font: 600 9px/1.3 Arial, sans-serif; }
+.faceoff-starter-picker button { min-width: 0; overflow: hidden; padding: 8px 10px; border: 1px solid #5667a9; color: #c7cdee; background: #242b65; font-size: 10px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.faceoff-starter-picker button.selected { color: var(--navy); background: var(--yellow); border-color: #ffe18c; box-shadow: inset 0 -3px 0 #d99d1d; }
 .answer-input-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .answer-input-row label { grid-column: 1 / -1; color: #9da7d4; }
 .answer-input-row input { margin: 0; color: var(--navy); border: 2px solid transparent; font-size: 17px; min-width: 0; }
@@ -138,6 +144,18 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
 .answer-entry p { min-height: 18px; margin: 10px 0 0; color: #b7bee5; font: 600 12px/1.45 Arial, sans-serif; }
 .answer-entry.correct p { color: #83e0b7; }
 .answer-entry.strike p { color: #ff8b9a; }
+.incorrect-box { margin-top: 12px; overflow: hidden; background: rgba(86,13,34,.34); border: 1px solid rgba(239,83,104,.55); }
+.incorrect-box-heading { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: rgba(151,26,51,.36); border-bottom: 1px solid rgba(239,83,104,.35); }
+.incorrect-box-heading span { color: #ffacb7; font-size: 9px; font-weight: 950; letter-spacing: .18em; }
+.incorrect-box-heading b { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--red); font-size: 10px; }
+.incorrect-box ul { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin: 0; padding: 0; background: rgba(239,83,104,.2); list-style: none; }
+.incorrect-box li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 10px 12px; background: #151642; }
+.incorrect-box li > div { min-width: 0; }
+.incorrect-box li span, .incorrect-box li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.incorrect-box li span { color: #aeb7e5; font: 700 9px Arial, sans-serif; }
+.incorrect-box li.team-2 span { color: #ffad79; }
+.incorrect-box li small { margin-top: 3px; color: #ff7f91; font: 800 8px Arial, sans-serif; letter-spacing: .1em; }
+.incorrect-box li strong { min-width: 0; overflow: hidden; color: white; font-size: 14px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .round-status { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; }
 .strikes { display: flex; gap: 7px; }
 .strikes span { height: 42px; width: 42px; display: grid; place-items: center; color: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.12); font: 950 37px/1 Arial, sans-serif; }
@@ -223,6 +241,9 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
   .award-group { grid-column: auto; }
   .answer-input-row { grid-template-columns: 1fr; }
   .answer-input-row button { min-height: 43px; }
+  .faceoff-starter-picker { grid-template-columns: 1fr 1fr; }
+  .faceoff-starter-picker > div { grid-column: 1 / -1; }
+  .incorrect-box ul { grid-template-columns: 1fr; }
   .game-stage { grid-template-columns: 1fr; }
   .board-wrap { grid-column: 1; grid-row: 1; }
   .team-1-side { grid-column: 1; grid-row: 2; }
