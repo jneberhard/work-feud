@@ -74,7 +74,7 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
 .primary-button { border: 0; color: white; background: var(--orange); padding: 17px 27px; font-weight: 950; letter-spacing: .1em; box-shadow: 6px 6px 0 var(--navy); transition: transform .15s, box-shadow .15s; }
 .primary-button:hover { transform: translate(2px,2px); box-shadow: 4px 4px 0 var(--navy); }
 .primary-button span { margin-left: 30px; font-size: 21px; }
-.setup-actions p { color: #87838a; font: 700 11px Arial, sans-serif; letter-spacing: .08em; }
+.setup-actions p { margin: 26px 0 0; color: #87838a; font: 700 11px Arial, sans-serif; letter-spacing: .08em; }
 
 .game-shell { min-height: 100vh; padding: 18px clamp(15px, 3vw, 46px) 40px; background: radial-gradient(circle at 50% -10%, #4264cf 0, transparent 31%), var(--navy); color: white; }
 .game-header { max-width: 1280px; margin: 0 auto 19px; }
