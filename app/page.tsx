@@ -864,7 +864,7 @@ export default function Home() {
           </button>
           <p>
             {!teamsDrawn
-              ? "Add players and draw teams to unlock the game"
+              ? "  "
               : `${roster.length} players / ${teams[0].players.length} vs ${teams[1].players.length} / ${ROUNDS.length} rounds`}
           </p>
         </div>
