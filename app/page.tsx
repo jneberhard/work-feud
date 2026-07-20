@@ -312,6 +312,10 @@ function Logo() {
   );
 }
 
+function SiteFooter() {
+  return <footer className="site-footer">© Jim Eberhard 2026</footer>;
+}
+
 function TeamCard({
   team,
   index,
@@ -408,6 +412,7 @@ export default function Home() {
   );
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
   const [controlsOpen, setControlsOpen] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [timeLeft, setTimeLeft] = useState(ANSWER_TIME_LIMIT);
   const [timerRunning, setTimerRunning] = useState(false);
 
@@ -430,14 +435,14 @@ export default function Home() {
       if (timeLeft <= 1) {
         setTimeLeft(0);
         setTimerRunning(false);
-        playTimerBeeps();
+        if (soundEnabled) playTimerBeeps();
         return;
       }
       setTimeLeft(timeLeft - 1);
     }, 1000);
 
     return () => window.clearTimeout(timerId);
-  }, [timeLeft, timerRunning]);
+  }, [soundEnabled, timeLeft, timerRunning]);
 
   const updateTeamName = (index: number, name: string) => {
     setTeams((current) =>
@@ -555,7 +560,7 @@ export default function Home() {
 
   const addStrike = (incorrectAnswer?: string) => {
     if (phase !== "play") return;
-    playWrongAnswerBuzzer();
+    if (soundEnabled) playWrongAnswerBuzzer();
     const nextStrikes = Math.min(3, strikes + 1);
     if (incorrectAnswer) {
       recordIncorrectAnswer(
@@ -593,12 +598,12 @@ export default function Home() {
       const earnedPoints = matchedAnswer?.points ?? 0;
 
       if (matchedAnswer) {
-        playCorrectAnswerBells();
+        if (soundEnabled) playCorrectAnswerBells();
         setRevealed((current) => [...current, matchedIndex]);
         setBankedAnswers((current) => [...current, matchedIndex]);
         setFeedbackTone("correct");
       } else {
-        playWrongAnswerBuzzer();
+        if (soundEnabled) playWrongAnswerBuzzer();
         recordIncorrectAnswer(
           submittedGuess,
           answeringTeam,
@@ -665,7 +670,7 @@ export default function Home() {
 
     if (phase === "steal") {
       if (matchedAnswer) {
-        playCorrectAnswerBells();
+        if (soundEnabled) playCorrectAnswerBells();
         const nextRevealed = [...revealed, matchedIndex];
         const nextBankedAnswers = [...bankedAnswers, matchedIndex];
         const stolenBoardTotal = nextBankedAnswers.reduce(
@@ -682,7 +687,7 @@ export default function Home() {
           `${matchedAnswer.text} is on the board! ${teams[activeTeam].name} steals all ${stolenBoardTotal} points.`,
         );
       } else {
-        playWrongAnswerBuzzer();
+        if (soundEnabled) playWrongAnswerBuzzer();
         recordIncorrectAnswer(submittedGuess, activeTeam, "STEAL ATTEMPT");
         completeRound(
           `${teams[activeTeam].name} missed their one steal answer.`,
@@ -692,7 +697,7 @@ export default function Home() {
     }
 
     if (matchedAnswer) {
-      playCorrectAnswerBells();
+      if (soundEnabled) playCorrectAnswerBells();
       const nextRevealed = [...revealed, matchedIndex];
       setRevealed(nextRevealed);
       setBankedAnswers((current) => [...current, matchedIndex]);
@@ -710,7 +715,7 @@ export default function Home() {
     }
 
     if (isAlreadyRevealed) {
-      playWrongAnswerBuzzer();
+      if (soundEnabled) playWrongAnswerBuzzer();
       const nextStrikes = Math.min(3, strikes + 1);
       recordIncorrectAnswer(
         submittedGuess,
@@ -864,10 +869,11 @@ export default function Home() {
           </button>
           <p>
             {!teamsDrawn
-              ? " Add at least two players and draw the teams to start the game."
+              ? "Add players and draw teams to unlock the game"
               : `${roster.length} players / ${teams[0].players.length} vs ${teams[1].players.length} / ${ROUNDS.length} rounds`}
           </p>
         </div>
+        <SiteFooter />
       </main>
     );
   }
@@ -934,7 +940,7 @@ export default function Home() {
               <button
                 type="button"
               onClick={() => {
-                prepareTimerAudio();
+                if (soundEnabled) prepareTimerAudio();
                 if (timeLeft === 0) setTimeLeft(ANSWER_TIME_LIMIT);
                 setTimerRunning(true);
               }}
@@ -1057,15 +1063,23 @@ export default function Home() {
         <button className="host-panel-toggle" onClick={() => setControlsOpen((value) => !value)}>
           <span>HOST OVERRIDES</span><b>{controlsOpen ? "HIDE" : "SHOW"}</b>
         </button>
-        {controlsOpen && (
+      {controlsOpen && (
           <div className="host-controls gameplay-controls">
             <div className="control-group">
-              <span>BOARD</span>
+              <span>BOARD &amp; SOUND</span>
               <button
                 onClick={() => setRevealed(round.answers.map((_, index) => index))}
                 disabled={phase !== "complete" || roundAwarded}
               >
                 REVEAL ALL
+              </button>
+              <button
+                className={`sound-toggle ${soundEnabled ? "" : "muted"}`}
+                type="button"
+                aria-pressed={soundEnabled}
+                onClick={() => setSoundEnabled((enabled) => !enabled)}
+              >
+                SOUND {soundEnabled ? "ON" : "OFF"}
               </button>
             </div>
             <div className="control-group">
@@ -1109,6 +1123,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      <SiteFooter />
     </main>
   );
 }
