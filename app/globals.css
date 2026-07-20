@@ -94,7 +94,21 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
 .score-card strong { font-size: clamp(16px, 2vw, 22px); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .score-card small { display: block; color: #99a0c6; font: 10px Arial, sans-serif; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .score-card b { font-size: clamp(36px, 5vw, 58px); line-height: 1; margin-left: 10px; font-variant-numeric: tabular-nums; }
-.board-wrap { max-width: 960px; margin: 0 auto; background: #17205d; padding: 24px clamp(15px, 3vw, 38px) 18px; border: 3px solid #4d65ca; box-shadow: 0 0 0 8px #0e123c, 0 18px 55px rgba(0,0,0,.35); position: relative; }
+.game-stage { max-width: 1380px; margin: 0 auto; display: grid; grid-template-columns: minmax(150px,190px) minmax(0,960px) minmax(150px,190px); gap: 20px; align-items: start; }
+.board-wrap { width: 100%; max-width: 960px; margin: 0 auto; background: #17205d; padding: 24px clamp(15px, 3vw, 38px) 18px; border: 3px solid #4d65ca; box-shadow: 0 0 0 8px #0e123c, 0 18px 55px rgba(0,0,0,.35); position: relative; }
+.side-roster { margin-top: 11px; overflow: hidden; background: rgba(10,10,45,.62); border: 1px solid rgba(255,255,255,.14); color: white; }
+.side-roster.active { border-color: var(--yellow); box-shadow: inset 4px 0 0 var(--yellow), 0 12px 30px rgba(0,0,0,.18); }
+.side-roster.team-2-side.active { border-color: var(--orange); box-shadow: inset -4px 0 0 var(--orange), 0 12px 30px rgba(0,0,0,.18); }
+.side-roster-heading { padding: 14px 13px; background: rgba(54,73,164,.35); border-bottom: 1px solid rgba(255,255,255,.12); }
+.side-roster-heading span { display: block; margin-bottom: 5px; color: var(--yellow); font-size: 8px; font-weight: 950; letter-spacing: .17em; }
+.team-2-side .side-roster-heading span { color: #ff9a5c; }
+.side-roster-heading strong { display: block; overflow: hidden; color: white; font-size: 15px; line-height: 1.05; text-overflow: ellipsis; text-transform: uppercase; }
+.side-roster ol { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 6px 0; list-style: none; }
+.side-roster li { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 9px 11px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.side-roster li:last-child { border-bottom: 0; }
+.side-roster li > span { flex: 0 0 22px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: #293d9c; color: var(--yellow); font-size: 9px; font-weight: 950; }
+.team-2-side li > span { background: #813d38; color: #ffc19b; }
+.side-roster li b { min-width: 0; overflow: hidden; color: #dce1fb; font: 700 12px Arial, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
 .board-lights { position: absolute; inset: -7px; pointer-events: none; border: 2px dotted var(--yellow); opacity: .7; }
 .question-card { text-align: center; padding: 3px 15px 18px; }
 .question-card span { font-size: 9px; font-weight: 900; letter-spacing: .3em; color: var(--yellow); }
@@ -153,6 +167,22 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
 .winner-banner small { font-size: 9px; letter-spacing: .2em; font-weight: 900; }
 .winner-banner strong { font-size: 27px; text-transform: uppercase; }
 
+@media (max-width: 1120px) {
+  .game-stage { grid-template-columns: 145px minmax(0,1fr) 145px; gap: 13px; }
+  .side-roster-heading { padding-inline: 10px; }
+  .side-roster-heading strong { font-size: 13px; }
+  .side-roster li { padding-inline: 8px; }
+  .side-roster li b { font-size: 11px; }
+}
+
+@media (max-width: 900px) {
+  .game-stage { max-width: 760px; grid-template-columns: 1fr 1fr; }
+  .board-wrap { grid-column: 1 / -1; grid-row: 1; }
+  .team-1-side { grid-column: 1; grid-row: 2; }
+  .team-2-side { grid-column: 2; grid-row: 2; }
+  .side-roster { margin-top: 8px; }
+}
+
 @media (max-width: 760px) {
   .setup-intro { margin-top: 44px; }
   .setup-grid, .score-row, .answers-grid { grid-template-columns: 1fr; }
@@ -193,6 +223,10 @@ input:focus { border-color: var(--electric); box-shadow: 0 0 0 3px rgba(59,101,2
   .award-group { grid-column: auto; }
   .answer-input-row { grid-template-columns: 1fr; }
   .answer-input-row button { min-height: 43px; }
+  .game-stage { grid-template-columns: 1fr; }
+  .board-wrap { grid-column: 1; grid-row: 1; }
+  .team-1-side { grid-column: 1; grid-row: 2; }
+  .team-2-side { grid-column: 1; grid-row: 3; }
   .round-status { align-items: flex-end; }
   .strikes span { width: 34px; height: 36px; font-size: 30px; }
 }

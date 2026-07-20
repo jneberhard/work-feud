@@ -129,6 +129,76 @@ function answersMatch(guess: string, boardAnswer: string) {
   );
 }
 
+function createAudioContext() {
+  if (typeof window === "undefined" || !window.AudioContext) return null;
+  try {
+    const context = new window.AudioContext();
+    if (context.state === "suspended") void context.resume();
+    return context;
+  } catch {
+    return null;
+  }
+}
+
+function playWrongAnswerBuzzer() {
+  const context = createAudioContext();
+  if (!context) return;
+
+  const now = context.currentTime;
+  const masterGain = context.createGain();
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+  masterGain.gain.setValueAtTime(0.12, now + 0.9);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1);
+  masterGain.connect(context.destination);
+
+  [96, 104].forEach((frequency) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(frequency, now);
+    oscillator.connect(masterGain);
+    oscillator.start(now);
+    oscillator.stop(now + 1);
+  });
+
+  window.setTimeout(() => void context.close(), 1100);
+}
+
+function playCorrectAnswerBells() {
+  const context = createAudioContext();
+  if (!context) return;
+
+  const now = context.currentTime;
+  const masterGain = context.createGain();
+  masterGain.gain.setValueAtTime(0.75, now);
+  masterGain.connect(context.destination);
+
+  for (let tap = 0; tap < 5; tap += 1) {
+    const start = now + tap * 0.16;
+    const baseFrequency = tap % 2 === 0 ? 880 : 990;
+
+    [
+      { multiple: 1, volume: 0.12 },
+      { multiple: 2.01, volume: 0.055 },
+      { multiple: 3.98, volume: 0.02 },
+    ].forEach(({ multiple, volume }) => {
+      const oscillator = context.createOscillator();
+      const tapGain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(baseFrequency * multiple, start);
+      tapGain.gain.setValueAtTime(0.0001, start);
+      tapGain.gain.exponentialRampToValueAtTime(volume, start + 0.006);
+      tapGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.105);
+      oscillator.connect(tapGain);
+      tapGain.connect(masterGain);
+      oscillator.start(start);
+      oscillator.stop(start + 0.11);
+    });
+  }
+
+  window.setTimeout(() => void context.close(), 900);
+}
+
 function Logo() {
   return (
     <div className="brand" aria-label="Work Feud">
@@ -173,6 +243,36 @@ function TeamCard({
         <div className="team-empty">Players will appear here after the random draw.</div>
       )}
     </section>
+  );
+}
+
+function SideRoster({
+  team,
+  index,
+  isActive,
+}: {
+  team: Team;
+  index: number;
+  isActive: boolean;
+}) {
+  return (
+    <aside
+      className={`side-roster team-${index + 1}-side ${isActive ? "active" : ""}`}
+      aria-label={`${team.name} player roster`}
+    >
+      <div className="side-roster-heading">
+        <span>{isActive ? "IN CONTROL" : `TEAM ${index + 1}`}</span>
+        <strong>{team.name}</strong>
+      </div>
+      <ol>
+        {team.players.map((player, playerIndex) => (
+          <li key={`${player}-${playerIndex}`}>
+            <span>{playerIndex + 1}</span>
+            <b>{player}</b>
+          </li>
+        ))}
+      </ol>
+    </aside>
   );
 }
 
@@ -285,6 +385,7 @@ export default function Home() {
 
   const addStrike = () => {
     if (phase !== "play") return;
+    playWrongAnswerBuzzer();
     const nextStrikes = Math.min(3, strikes + 1);
     setStrikes(nextStrikes);
     setFeedbackTone("strike");
@@ -313,9 +414,11 @@ export default function Home() {
       const earnedPoints = matchedAnswer?.points ?? 0;
 
       if (matchedAnswer) {
+        playCorrectAnswerBells();
         setRevealed((current) => [...current, matchedIndex]);
         setFeedbackTone("correct");
       } else {
+        playWrongAnswerBuzzer();
         setFeedbackTone("neutral");
       }
 
@@ -350,6 +453,7 @@ export default function Home() {
     }
 
     if (matchedAnswer) {
+      playCorrectAnswerBells();
       const nextRevealed = [...revealed, matchedIndex];
       setRevealed(nextRevealed);
       setFeedbackTone("correct");
@@ -366,6 +470,7 @@ export default function Home() {
     }
 
     if (isAlreadyRevealed) {
+      playWrongAnswerBuzzer();
       const nextStrikes = Math.min(3, strikes + 1);
       setStrikes(nextStrikes);
       setFeedbackTone("strike");
@@ -542,58 +647,64 @@ export default function Home() {
         <b>{teams[1].name}: {faceOffPoints[1] ?? "--"}</b>
       </div>
 
-      <section className="board-wrap">
-        <div className="board-lights" aria-hidden="true" />
-        <div className="question-card">
-          <span>SURVEY SAYS</span>
-          <h1>{round.question}</h1>
-        </div>
-        <div className="answers-grid">
-          {round.answers.map((answer, index) => {
-            const isRevealed = revealed.includes(index);
-            return (
-              <div
-                key={answer.text}
-                className={`answer-tile ${isRevealed ? "revealed" : ""}`}
-                aria-label={isRevealed ? `${answer.text}, ${answer.points} points` : `Hidden answer ${index + 1}`}
-              >
-                <span className="answer-number">{index + 1}</span>
-                <span className="answer-text">{isRevealed ? answer.text : ""}</span>
-                <strong>{isRevealed ? answer.points : ""}</strong>
-              </div>
-            );
-          })}
-        </div>
+      <section className="game-stage">
+        <SideRoster team={teams[0]} index={0} isActive={activeTeam === 0} />
 
-        <form className={`answer-entry ${feedbackTone}`} onSubmit={submitAnswer}>
-          <div className="answer-entry-heading">
-            <span>{phase === "faceoff" ? "FACE-OFF" : phase === "play" ? "TEAM ANSWER" : "ROUND OVER"}</span>
-            <strong>{phase === "complete" ? "Ready for the next round" : `${teams[activeTeam].name} is answering`}</strong>
+        <section className="board-wrap">
+          <div className="board-lights" aria-hidden="true" />
+          <div className="question-card">
+            <span>SURVEY SAYS</span>
+            <h1>{round.question}</h1>
           </div>
-          <div className="answer-input-row">
-            <label htmlFor="team-answer">Enter the team&apos;s answer</label>
-            <input
-              id="team-answer"
-              value={guess}
-              onChange={(event) => setGuess(event.target.value)}
-              placeholder="Type an answer..."
-              autoComplete="off"
-              autoFocus
-              disabled={phase === "complete"}
-            />
-            <button type="submit" disabled={!guess.trim() || phase === "complete"}>CHECK ANSWER</button>
+          <div className="answers-grid">
+            {round.answers.map((answer, index) => {
+              const isRevealed = revealed.includes(index);
+              return (
+                <div
+                  key={answer.text}
+                  className={`answer-tile ${isRevealed ? "revealed" : ""}`}
+                  aria-label={isRevealed ? `${answer.text}, ${answer.points} points` : `Hidden answer ${index + 1}`}
+                >
+                  <span className="answer-number">{index + 1}</span>
+                  <span className="answer-text">{isRevealed ? answer.text : ""}</span>
+                  <strong>{isRevealed ? answer.points : ""}</strong>
+                </div>
+              );
+            })}
           </div>
-          <p role="status" aria-live="polite">{feedback}</p>
-        </form>
 
-        <div className="round-status">
-          <div className="strikes" aria-label={`${strikes} strikes`}>
-            {[0, 1, 2].map((strike) => (
-              <span key={strike} className={strike < strikes ? "shown" : ""}>X</span>
-            ))}
+          <form className={`answer-entry ${feedbackTone}`} onSubmit={submitAnswer}>
+            <div className="answer-entry-heading">
+              <span>{phase === "faceoff" ? "FACE-OFF" : phase === "play" ? "TEAM ANSWER" : "ROUND OVER"}</span>
+              <strong>{phase === "complete" ? "Ready for the next round" : `${teams[activeTeam].name} is answering`}</strong>
+            </div>
+            <div className="answer-input-row">
+              <label htmlFor="team-answer">Enter the team&apos;s answer</label>
+              <input
+                id="team-answer"
+                value={guess}
+                onChange={(event) => setGuess(event.target.value)}
+                placeholder="Type an answer..."
+                autoComplete="off"
+                autoFocus
+                disabled={phase === "complete"}
+              />
+              <button type="submit" disabled={!guess.trim() || phase === "complete"}>CHECK ANSWER</button>
+            </div>
+            <p role="status" aria-live="polite">{feedback}</p>
+          </form>
+
+          <div className="round-status">
+            <div className="strikes" aria-label={`${strikes} strikes`}>
+              {[0, 1, 2].map((strike) => (
+                <span key={strike} className={strike < strikes ? "shown" : ""}>X</span>
+              ))}
+            </div>
+            <div className="round-bank"><span>BOARD TOTAL</span><strong>{boardPoints}</strong></div>
           </div>
-          <div className="round-bank"><span>BOARD TOTAL</span><strong>{boardPoints}</strong></div>
-        </div>
+        </section>
+
+        <SideRoster team={teams[1]} index={1} isActive={activeTeam === 1} />
       </section>
 
       <section className={`host-panel ${controlsOpen ? "open" : ""}`}>
