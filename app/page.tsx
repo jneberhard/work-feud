@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 type Answer = { text: string; points: number };
 type Round = { question: string; answers: Answer[] };
@@ -116,6 +116,8 @@ const ROUNDS: Round[] = [
     ],
   },
 ];
+
+const ANSWER_TIME_LIMIT = 15;
 
 function shuffleRounds(rounds: Round[]) {
   const shuffled = [...rounds];
@@ -267,6 +269,40 @@ function playCorrectAnswerBells() {
   window.setTimeout(() => void context.close(), 900);
 }
 
+let timerAudioContext: AudioContext | null = null;
+
+function prepareTimerAudio() {
+  if (typeof window === "undefined" || !window.AudioContext) return null;
+
+  if (!timerAudioContext || timerAudioContext.state === "closed") {
+    timerAudioContext = new window.AudioContext();
+  }
+  if (timerAudioContext.state === "suspended") void timerAudioContext.resume();
+  return timerAudioContext;
+}
+
+function playTimerBeeps() {
+  const context = prepareTimerAudio();
+  if (!context) return;
+
+  const now = context.currentTime;
+  [0, 0.24].forEach((delay) => {
+    const start = now + delay;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(720, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.1, start + 0.01);
+    gain.gain.setValueAtTime(0.1, start + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.17);
+  });
+}
+
 function Logo() {
   return (
     <div className="brand" aria-label="Work Feud">
@@ -372,6 +408,8 @@ export default function Home() {
   );
   const [feedbackTone, setFeedbackTone] = useState<FeedbackTone>("neutral");
   const [controlsOpen, setControlsOpen] = useState(true);
+  const [timeLeft, setTimeLeft] = useState(ANSWER_TIME_LIMIT);
+  const [timerRunning, setTimerRunning] = useState(false);
 
   const round = gameRounds[roundIndex];
   const boardPoints = useMemo(
@@ -384,6 +422,22 @@ export default function Home() {
   );
   const gameFinished =
     roundIndex === gameRounds.length - 1 && phase === "complete" && roundAwarded;
+
+  useEffect(() => {
+    if (!timerRunning) return;
+
+    const timerId = window.setTimeout(() => {
+      if (timeLeft <= 1) {
+        setTimeLeft(0);
+        setTimerRunning(false);
+        playTimerBeeps();
+        return;
+      }
+      setTimeLeft(timeLeft - 1);
+    }, 1000);
+
+    return () => window.clearTimeout(timerId);
+  }, [timeLeft, timerRunning]);
 
   const updateTeamName = (index: number, name: string) => {
     setTeams((current) =>
@@ -445,6 +499,8 @@ export default function Home() {
   };
 
   const completeRound = (message: string) => {
+    setTimerRunning(false);
+    setTimeLeft(ANSWER_TIME_LIMIT);
     setPhase("complete");
     setRoundAwarded(false);
     setFeedback(`${message} Host: choose which team receives the board total.`);
@@ -521,6 +577,8 @@ export default function Home() {
     event.preventDefault();
     const submittedGuess = guess.trim();
     if (!submittedGuess || phase === "complete") return;
+    setTimerRunning(false);
+    setTimeLeft(ANSWER_TIME_LIMIT);
 
     const matchedIndex = round.answers.findIndex((answer) =>
       answersMatch(submittedGuess, answer.text),
@@ -690,6 +748,8 @@ export default function Home() {
     setActiveTeam(startingTeam);
     setGuess("");
     setFeedbackTone("neutral");
+    setTimerRunning(false);
+    setTimeLeft(ANSWER_TIME_LIMIT);
     setFeedback(
       `${teams[startingTeam].name} gives the first face-off answer. No strike can be given.`,
     );
@@ -711,6 +771,8 @@ export default function Home() {
     setActiveTeam(0);
     setGuess("");
     setFeedbackTone("neutral");
+    setTimerRunning(false);
+    setTimeLeft(ANSWER_TIME_LIMIT);
     setFeedback(`${teams[0].name} gives the first face-off answer. No strike can be given.`);
     setStarted(false);
   };
@@ -786,6 +848,8 @@ export default function Home() {
             className="primary-button"
             onClick={() => {
               setGameRounds(shuffleRounds(ROUNDS));
+              setTimerRunning(false);
+              setTimeLeft(ANSWER_TIME_LIMIT);
               setStarted(true);
               setFeedback(
                 `${teams[0].name} gives the first face-off answer. No strike can be given.`,
@@ -857,6 +921,38 @@ export default function Home() {
           <div className="question-card">
             <span>SURVEY SAYS</span>
             <h1>{round.question}</h1>
+          </div>
+          <div className={`timer-bar ${timerRunning ? "running" : ""} ${timeLeft <= 5 ? "urgent" : ""}`}>
+            <div className="timer-clock" role="timer" aria-label={`${timeLeft} seconds remaining`}>
+              <span>00</span><b>:</b><span>{String(timeLeft).padStart(2, "0")}</span>
+            </div>
+            <div className="timer-copy">
+              <strong>{timeLeft === 0 ? "TIME'S UP" : "ANSWER TIMER"}</strong>
+              <small>15 seconds / host controlled</small>
+            </div>
+            <div className="timer-actions">
+              <button
+                type="button"
+              onClick={() => {
+                prepareTimerAudio();
+                if (timeLeft === 0) setTimeLeft(ANSWER_TIME_LIMIT);
+                setTimerRunning(true);
+              }}
+                disabled={timerRunning || phase === "complete"}
+              >
+                {timeLeft === 0 ? "START AGAIN" : "START"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimerRunning(false);
+                  setTimeLeft(ANSWER_TIME_LIMIT);
+                }}
+                disabled={!timerRunning && timeLeft === ANSWER_TIME_LIMIT}
+              >
+                RESET
+              </button>
+            </div>
           </div>
           <div className="answers-grid">
             {round.answers.map((answer, index) => {
